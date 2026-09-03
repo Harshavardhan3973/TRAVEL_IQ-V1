@@ -1,0 +1,7 @@
+{
+  "name": "TRAVELIQ – India Smart Tourism & All-India Trip Planner",
+  "description": "Comprehensive India travel planning platform featuring satellite maps, all-India destination discovery, live monsoon & weather intelligence, Vande Bharat & IRCTC transport, heritage stays, and smart AI itineraries.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
