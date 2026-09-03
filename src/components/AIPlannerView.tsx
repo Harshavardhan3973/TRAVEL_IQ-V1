@@ -20,7 +20,7 @@ import {
   Compass,
   ArrowRight
 } from 'lucide-react';
-import { AITripPlan, UserTrip, WorldLocation } from '../types';
+import { AITripPlan, UserTrip, WorldLocation, UserProfile } from '../types';
 import { POPULAR_WORLD_DESTINATIONS } from '../data/worldData';
 
 interface AIPlannerViewProps {
@@ -28,17 +28,21 @@ interface AIPlannerViewProps {
   initialDate?: string;
   initialTravelers?: number;
   initialWorldLocation?: WorldLocation | null;
+  currentUser?: UserProfile | null;
   onSaveTrip: (trip: UserTrip) => void;
   onViewOnMap?: (plan: AITripPlan) => void;
+  onPlanNewTrip?: () => void;
 }
 
 export const AIPlannerView: React.FC<AIPlannerViewProps> = ({
-  initialDestination = 'Paris',
+  initialDestination = 'Mysuru',
   initialDate = '2026-09-12',
   initialTravelers = 2,
   initialWorldLocation = null,
+  currentUser = null,
   onSaveTrip,
   onViewOnMap,
+  onPlanNewTrip
 }) => {
   // Helper to ensure destination is always a clean string
   const safeDestString = (val: any): string => {
@@ -48,9 +52,11 @@ export const AIPlannerView: React.FC<AIPlannerViewProps> = ({
     return String(val);
   };
 
-  const [destination, setDestination] = useState<string>(() => safeDestString(initialDestination));
-  const [days, setDays] = useState(3);
-  const [travelers, setTravelers] = useState(initialTravelers);
+  const [destination, setDestination] = useState<string>(() => 
+    currentUser?.travelProfile?.destination || safeDestString(initialDestination)
+  );
+  const [days, setDays] = useState(currentUser?.travelProfile?.availableDays || 2);
+  const [travelers, setTravelers] = useState(currentUser?.travelProfile?.travelersCount || initialTravelers);
   const [budgetTier, setBudgetTier] = useState<'Budget' | 'Moderate' | 'Luxury'>('Moderate');
   const [travelStyle, setTravelStyle] = useState<'Cultural' | 'Iconic Sights' | 'Foodie & Dining' | 'Relaxed Leisure' | 'Adventure'>('Iconic Sights');
   const [loading, setLoading] = useState(false);
@@ -69,13 +75,13 @@ export const AIPlannerView: React.FC<AIPlannerViewProps> = ({
   const getCurrencyForDest = (destName: any) => {
     const valid = typeof destName === 'string' ? destName : (destName && typeof destName === 'object' && destName.name) ? String(destName.name) : String(destName || '');
     const lower = valid.toLowerCase();
-    if (lower.includes('mysore') || lower.includes('india') || lower.includes('bangalore') || lower.includes('delhi')) return { symbol: '₹', code: 'INR' };
+    if (lower.includes('mysore') || lower.includes('mysuru') || lower.includes('india') || lower.includes('bangalore') || lower.includes('bengaluru') || lower.includes('delhi')) return { symbol: '₹', code: 'INR' };
     if (lower.includes('paris') || lower.includes('france') || lower.includes('rome') || lower.includes('italy')) return { symbol: '€', code: 'EUR' };
     if (lower.includes('tokyo') || lower.includes('japan')) return { symbol: '¥', code: 'JPY' };
     if (lower.includes('london') || lower.includes('uk') || lower.includes('britain')) return { symbol: '£', code: 'GBP' };
     if (lower.includes('dubai') || lower.includes('uae')) return { symbol: 'AED ', code: 'AED' };
     if (lower.includes('bali') || lower.includes('indonesia')) return { symbol: 'Rp ', code: 'IDR' };
-    return { symbol: '$', code: 'USD' };
+    return { symbol: '₹', code: 'INR' };
   };
 
   const currentCurrency = getCurrencyForDest(destination);
@@ -86,13 +92,7 @@ export const AIPlannerView: React.FC<AIPlannerViewProps> = ({
     setError(null);
     setIsSaved(false);
 
-    const budgetAmounts = {
-      Budget: currentCurrency.code === 'INR' ? 4500 : currentCurrency.code === 'JPY' ? 30000 : 350,
-      Moderate: currentCurrency.code === 'INR' ? 9500 : currentCurrency.code === 'JPY' ? 70000 : 750,
-      Luxury: currentCurrency.code === 'INR' ? 25000 : currentCurrency.code === 'JPY' ? 180000 : 1800,
-    };
-
-    const targetBudget = budgetAmounts[budgetTier] * Math.max(1, Math.round(days / 2));
+    const targetBudget = currentUser?.travelProfile?.budgetAmount || 5000;
 
     try {
       const response = await fetch('/api/plan-trip', {
@@ -100,13 +100,19 @@ export const AIPlannerView: React.FC<AIPlannerViewProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           destination,
+          startingLocation: currentUser?.travelProfile?.startingLocation || 'Bengaluru',
           days,
           budget: targetBudget,
           travelers,
-          preferences: `${travelStyle}, weather-optimized, sightseeing and cuisine`,
-          travelDate: initialDate,
-          currency: currentCurrency.code,
-          currencySymbol: currentCurrency.symbol,
+          interests: currentUser?.travelProfile?.interests?.join(', ') || 'History, Food, Photography',
+          travelStyle: currentUser?.travelProfile?.travelStyle || 'Balanced',
+          transportPreference: currentUser?.travelProfile?.transportPreference?.join(' + ') || 'Train + Bus',
+          hotelPreference: currentUser?.travelProfile?.hotelPreference || 'Budget Hotel',
+          tripPriority: currentUser?.travelProfile?.tripPriority || 'Maximum places',
+          preferences: `${currentUser?.travelProfile?.interests?.join(', ') || travelStyle}, weather-optimized`,
+          travelDate: currentUser?.travelProfile?.startDate || initialDate,
+          currency: 'INR',
+          currencySymbol: '₹',
           lat: initialWorldLocation?.lat,
           lng: initialWorldLocation?.lng,
         }),
@@ -123,25 +129,49 @@ export const AIPlannerView: React.FC<AIPlannerViewProps> = ({
       console.warn('Network issue generating plan, using resilient smart generator:', err);
       // Instant client-side fallback plan ensuring the traveler never encounters a blank screen
       const defaultBudget = targetBudget;
+      const transportAmt = Math.round(defaultBudget * 0.18);
+      const hotelAmt = Math.round(defaultBudget * 0.35);
+      const foodAmt = Math.round(defaultBudget * 0.22);
+      const attractionsAmt = Math.round(defaultBudget * 0.12);
+      const localTravelAmt = Math.round(defaultBudget * 0.08);
+      const totalCalc = transportAmt + hotelAmt + foodAmt + attractionsAmt + localTravelAmt;
+      const remBudget = defaultBudget - totalCalc;
+
       const fallbackPlan: AITripPlan = {
         title: `${days}-Day Smart Itinerary for ${destination}`,
         destination,
+        startingLocation: currentUser?.travelProfile?.startingLocation || 'Bengaluru',
         duration: `${days} Days`,
-        budgetCategory: budgetTier,
-        estimatedTotalBudget: Math.round(defaultBudget * 0.88),
-        currencySymbol: currentCurrency.symbol,
-        totalDistanceKm: days * 7.5,
+        budgetCategory: currentUser?.travelProfile?.travelStyle || budgetTier,
+        estimatedTotalBudget: totalCalc,
+        currencySymbol: '₹',
+        totalDistanceKm: days * 12.5,
         estimatedTravelTime: "35–45 mins/day",
+        budgetBreakdown: {
+          transport: transportAmt,
+          hotel: hotelAmt,
+          food: foodAmt,
+          attractions: attractionsAmt,
+          localTravel: localTravelAmt,
+          total: totalCalc,
+          budgetRemaining: remBudget,
+          exceedsBudget: totalCalc > defaultBudget,
+          optimizationNotes: totalCalc > defaultBudget ? [
+            "Opt for express state buses or sleeper train berths instead of private cabs",
+            "Book budget boutique hotels or homestays",
+            "Visit free attractions & monument gardens"
+          ] : []
+        },
         recommendedHotel: {
-          name: `Grand ${destination} Boutique Hotel`,
-          pricePerNight: Math.round(defaultBudget * 0.3 / days),
-          reason: "Centrally located with complimentary breakfast and rapid transit access."
+          name: `Recommended ${currentUser?.travelProfile?.hotelPreference || 'Budget Hotel'} in ${destination}`,
+          pricePerNight: Math.round(hotelAmt / Math.max(1, days - 1)),
+          reason: "Centrally located with complimentary breakfast, verified amenities, and rapid transit access."
         },
         recommendedTransport: {
-          mode: "City Rail & Metro Express",
-          provider: "Urban Transit Authority",
-          estimatedCost: Math.round(defaultBudget * 0.08),
-          reason: "Seamless city-wide access avoiding road congestion."
+          mode: currentUser?.travelProfile?.transportPreference?.join(' + ') || "Train + Bus",
+          provider: "IRCTC / State Transport / Bus",
+          estimatedCost: transportAmt,
+          reason: "Seamless connectivity avoiding highway congestion and staying within budget."
         },
         weatherTip: "Plan outdoor sightseeing during cool morning hours; indoor galleries scheduled for afternoon.",
         days: Array.from({ length: days }).map((_, idx) => ({
@@ -155,7 +185,7 @@ export const AIPlannerView: React.FC<AIPlannerViewProps> = ({
               placeName: `${destination} Landmark ${idx + 1}`,
               duration: "2.5 hrs",
               isOutdoor: true,
-              coordinates: initialWorldLocation ? { lat: initialWorldLocation.lat + 0.003 * (idx + 1), lng: initialWorldLocation.lng + 0.003 * (idx + 1) } : { lat: 12.9716, lng: 77.5946 },
+              coordinates: initialWorldLocation ? { lat: initialWorldLocation.lat + 0.003 * (idx + 1), lng: initialWorldLocation.lng + 0.003 * (idx + 1) } : { lat: 12.3051, lng: 76.6552 },
               note: "Arrive early for soft lighting and fast entry."
             },
             {
@@ -164,7 +194,7 @@ export const AIPlannerView: React.FC<AIPlannerViewProps> = ({
               placeName: "Traditional Heritage Restaurant",
               duration: "1 hr",
               isOutdoor: false,
-              coordinates: initialWorldLocation ? { lat: initialWorldLocation.lat + 0.001 * (idx + 1), lng: initialWorldLocation.lng + 0.002 * (idx + 1) } : { lat: 12.9716, lng: 77.5946 },
+              coordinates: initialWorldLocation ? { lat: initialWorldLocation.lat + 0.001 * (idx + 1), lng: initialWorldLocation.lng + 0.002 * (idx + 1) } : { lat: 12.3060, lng: 76.6560 },
               note: "Famous local thali & chef specialties."
             },
             {
@@ -173,7 +203,7 @@ export const AIPlannerView: React.FC<AIPlannerViewProps> = ({
               placeName: `${destination} Heritage Museum`,
               duration: "2 hrs",
               isOutdoor: false,
-              coordinates: initialWorldLocation ? { lat: initialWorldLocation.lat - 0.003 * (idx + 1), lng: initialWorldLocation.lng - 0.002 * (idx + 1) } : { lat: 12.9716, lng: 77.5946 },
+              coordinates: initialWorldLocation ? { lat: initialWorldLocation.lat - 0.003 * (idx + 1), lng: initialWorldLocation.lng - 0.002 * (idx + 1) } : { lat: 12.3040, lng: 76.6540 },
               note: "Climate-controlled galleries optimal for afternoon."
             }
           ]
@@ -217,6 +247,50 @@ export const AIPlannerView: React.FC<AIPlannerViewProps> = ({
 
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto px-4 sm:px-6">
+      {/* PERSONALIZED TRAVEL PROFILE BANNER (IF CONFIGURED) */}
+      {currentUser?.travelProfile && (
+        <div className="bg-white rounded-3xl p-5 border border-blue-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-black uppercase tracking-wider">
+                Personalized Profile
+              </span>
+              <span className="text-xs font-bold text-slate-700">
+                {currentUser.name}
+              </span>
+            </div>
+            <div className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+              <span>{currentUser.travelProfile.startingLocation}</span>
+              <ArrowRight className="w-4 h-4 text-blue-600 shrink-0" />
+              <span className="text-blue-700">{currentUser.travelProfile.destination}</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 font-medium">
+              <span className="bg-slate-100 px-2 py-0.5 rounded-md font-bold">⏱️ {currentUser.travelProfile.availableDays} Days</span>
+              <span className="bg-slate-100 px-2 py-0.5 rounded-md font-bold">👥 {currentUser.travelProfile.travelersCount} ({currentUser.travelProfile.travelersType})</span>
+              <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md font-black">💰 ₹{currentUser.travelProfile.budgetAmount.toLocaleString('en-IN')}</span>
+              <span className="bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded-md font-bold">🎨 {currentUser.travelProfile.travelStyle} Style</span>
+              <span className="bg-slate-100 px-2 py-0.5 rounded-md">🎯 {currentUser.travelProfile.tripPriority}</span>
+              <span className="bg-slate-100 px-2 py-0.5 rounded-md">🚆 {currentUser.travelProfile.transportPreference.join(' + ')}</span>
+              <span className="bg-slate-100 px-2 py-0.5 rounded-md">🏨 {currentUser.travelProfile.hotelPreference}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+            {onPlanNewTrip && (
+              <button
+                id="btn-ai-planner-new-trip"
+                type="button"
+                onClick={onPlanNewTrip}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>+ Plan New Trip</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* HEADER BANNER */}
       <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-800/40 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -461,6 +535,140 @@ export const AIPlannerView: React.FC<AIPlannerViewProps> = ({
                 <div className="text-slate-600 mt-1">{tripPlan.recommendedTransport.reason}</div>
               </div>
             </div>
+          </div>
+
+          {/* 25. BUDGET MANAGEMENT BREAKDOWN */}
+          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4 text-left">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-emerald-600" />
+                  <span>Trip Budget Management &amp; Breakdown</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Real-time cost synthesis matching your preferred travel style and category
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-600 font-semibold">Allocated Budget:</span>
+                <span className="text-sm font-black text-emerald-700 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200">
+                  {tripPlan.currencySymbol || '₹'}{(currentUser?.travelProfile?.budgetAmount || tripPlan.estimatedTotalBudget).toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+
+            {/* If plan exceeds budget warning */}
+            {((tripPlan.budgetBreakdown?.exceedsBudget) || 
+              (currentUser?.travelProfile?.budgetAmount && tripPlan.estimatedTotalBudget > currentUser.travelProfile.budgetAmount)) && (
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-2 text-left">
+                <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>⚠️ This plan exceeds your budget.</span>
+                </div>
+                <p className="text-xs text-amber-800">
+                  To keep the total estimated cost within your limit, TRAVELIQ suggests:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-amber-950 font-medium pt-1">
+                  <div className="p-2 bg-white/70 rounded-xl border border-amber-200/60 flex items-center gap-2">
+                    <span className="text-base">🚌</span>
+                    <span>Cheaper transport (choose state RTC bus or sleeper train instead of private cab)</span>
+                  </div>
+                  <div className="p-2 bg-white/70 rounded-xl border border-amber-200/60 flex items-center gap-2">
+                    <span className="text-base">🏨</span>
+                    <span>Budget hotel or verified heritage homestay</span>
+                  </div>
+                  <div className="p-2 bg-white/70 rounded-xl border border-amber-200/60 flex items-center gap-2">
+                    <span className="text-base">🏛️</span>
+                    <span>Prioritize free attractions &amp; monument gardens</span>
+                  </div>
+                  <div className="p-2 bg-white/70 rounded-xl border border-amber-200/60 flex items-center gap-2">
+                    <span className="text-base">🗓️</span>
+                    <span>Reduce trip duration by 1 day if necessary</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 5 Cost Buckets */}
+            {tripPlan.budgetBreakdown && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {/* 1. Transport */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
+                  <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-slate-500 mb-1">
+                    <Bus className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Transport</span>
+                  </div>
+                  <div className="text-sm sm:text-base font-black text-slate-900">
+                    {tripPlan.currencySymbol || '₹'}{tripPlan.budgetBreakdown.transport.toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">Intercity transit</div>
+                </div>
+
+                {/* 2. Hotel */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
+                  <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-slate-500 mb-1">
+                    <HotelIcon className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Hotel</span>
+                  </div>
+                  <div className="text-sm sm:text-base font-black text-slate-900">
+                    {tripPlan.currencySymbol || '₹'}{tripPlan.budgetBreakdown.hotel.toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">All nights included</div>
+                </div>
+
+                {/* 3. Food */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
+                  <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-slate-500 mb-1">
+                    <span className="text-xs">🍛</span>
+                    <span>Food</span>
+                  </div>
+                  <div className="text-sm sm:text-base font-black text-slate-900">
+                    {tripPlan.currencySymbol || '₹'}{tripPlan.budgetBreakdown.food.toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">Meals &amp; snacks</div>
+                </div>
+
+                {/* 4. Attractions */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
+                  <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-slate-500 mb-1">
+                    <span className="text-xs">🎟️</span>
+                    <span>Attractions</span>
+                  </div>
+                  <div className="text-sm sm:text-base font-black text-slate-900">
+                    {tripPlan.currencySymbol || '₹'}{tripPlan.budgetBreakdown.attractions.toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">Tickets &amp; entries</div>
+                </div>
+
+                {/* 5. Local Travel */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
+                  <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-slate-500 mb-1">
+                    <Navigation className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Local Travel</span>
+                  </div>
+                  <div className="text-sm sm:text-base font-black text-slate-900">
+                    {tripPlan.currencySymbol || '₹'}{tripPlan.budgetBreakdown.localTravel.toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">Auto &amp; metro</div>
+                </div>
+
+                {/* Total vs Remaining */}
+                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200">
+                  <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-emerald-800 mb-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Total Estimated</span>
+                  </div>
+                  <div className="text-sm sm:text-base font-black text-emerald-950">
+                    {tripPlan.currencySymbol || '₹'}{tripPlan.budgetBreakdown.total.toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-[10px] text-emerald-700 font-bold mt-0.5">
+                    {tripPlan.budgetBreakdown.budgetRemaining >= 0 
+                      ? `+${tripPlan.currencySymbol || '₹'}${tripPlan.budgetBreakdown.budgetRemaining.toLocaleString('en-IN')} buffer` 
+                      : `${tripPlan.currencySymbol || '₹'}${Math.abs(tripPlan.budgetBreakdown.budgetRemaining).toLocaleString('en-IN')} over`}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* DAY BY DAY SCHEDULE */}

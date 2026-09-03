@@ -734,22 +734,28 @@ Return strictly valid JSON with no markdown wrapping:
 // 5. AI TRIP PLANNING API (Worldwide: Paris, Tokyo, Bali, New York, London, Mysore, or ANY location)
 app.post("/api/plan-trip", async (req, res) => {
   const { 
-    destination = "Paris", 
-    budget = 500, 
-    days = 3, 
+    destination = "Mysuru", 
+    startingLocation = "Bengaluru",
+    budget = 5000, 
+    days = 2, 
     travelers = 2, 
-    preferences = "History, photography, local cuisine", 
+    preferences = "History, Food, Photography", 
+    interests = "History & Heritage, Food, Photography",
+    travelStyle = "Balanced",
+    transportPreference = "Train + Bus",
+    hotelPreference = "Budget Hotel",
+    tripPriority = "Maximum places",
     travelDate = "Upcoming weekend",
-    currency = "EUR",
-    currencySymbol = "€",
+    currency = "INR",
+    currencySymbol = "₹",
     lat,
     lng
   } = req.body;
 
   const numBudget = Number(budget) || (currency === "INR" ? 5000 : 500);
-  const numDays = Math.min(Math.max(Number(days) || 3, 1), 7);
-  const targetLat = parseFloat(lat) || 48.8566;
-  const targetLng = parseFloat(lng) || 2.3522;
+  const numDays = Math.min(Math.max(Number(days) || 2, 1), 14);
+  const targetLat = parseFloat(lat) || 12.3051; // Mysuru default
+  const targetLng = parseFloat(lng) || 76.6552;
   const curr = getCurrencyForCountry("", destination);
   const activeSymbol = currencySymbol || curr.symbol;
 
@@ -757,80 +763,98 @@ app.post("/api/plan-trip", async (req, res) => {
 
   if (gemini) {
     try {
-      const prompt = `You are TRAVELIQ's Global Smart Tourism AI Planner.
-Create a comprehensive, realistic, weather-aware ${numDays}-day travel itinerary for "${destination}".
-Budget: ${activeSymbol}${numBudget} for ${travelers} traveler(s).
-User Interests: ${preferences}.
-Travel Date: ${travelDate}.
+      const prompt = `Create an India travel itinerary.
 
-Requirements:
-1. Coordinate realistic schedules that minimize transit fatigue.
-2. Group nearby attractions together on each day.
-3. Recommend an appropriate hotel within the budget category with nightly price.
-4. Recommend intercity/local transport with estimated cost in ${activeSymbol}.
-5. Provide a practical weather tip advising outdoor attractions during pleasant times and indoor galleries during hot/rainy hours.
-6. Provide realistic latitude and longitude coordinates for every single scheduled activity and the hotel, centered around coordinates approx (${targetLat}, ${targetLng}).
-7. Output strictly valid JSON matching this schema:
+Starting location: ${startingLocation}
+Destination: ${destination}
+Available days: ${numDays}
+Travelers: ${travelers}
+Budget: ${activeSymbol}${numBudget}
+Interests: ${interests || preferences}
+Travel style: ${travelStyle}
+Transport preference: ${transportPreference}
+Hotel preference: ${hotelPreference}
+Priority: ${tripPriority}
+
+Use available tourism, weather, transport, hotel and attraction data.
+Keep the total estimated cost within budget.
+Respect opening hours.
+Minimize unnecessary travel.
+Recommend the best practical itinerary.
+
+Output strictly valid JSON matching this schema:
 {
   "title": "${numDays}-Day Smart Itinerary for ${destination}",
   "destination": "${destination}",
+  "startingLocation": "${startingLocation}",
   "duration": "${numDays} Days",
-  "budgetCategory": "Moderate",
+  "budgetCategory": "${travelStyle}",
   "estimatedTotalBudget": ${Math.round(numBudget * 0.9)},
   "currencySymbol": "${activeSymbol}",
-  "totalDistanceKm": 24.5,
+  "totalDistanceKm": 28.5,
   "estimatedTravelTime": "45 mins/day",
+  "budgetBreakdown": {
+    "transport": ${Math.round(numBudget * 0.2)},
+    "hotel": ${Math.round(numBudget * 0.35)},
+    "food": ${Math.round(numBudget * 0.2)},
+    "attractions": ${Math.round(numBudget * 0.1)},
+    "localTravel": ${Math.round(numBudget * 0.05)},
+    "total": ${Math.round(numBudget * 0.9)},
+    "budgetRemaining": ${Math.round(numBudget * 0.1)},
+    "exceedsBudget": false,
+    "optimizationNotes": []
+  },
   "recommendedHotel": {
-    "name": "Hotel Name in ${destination}",
-    "pricePerNight": ${Math.round(numBudget * 0.3 / numDays)},
-    "reason": "Central location near transit lines"
+    "name": "Recommended ${hotelPreference} in ${destination}",
+    "pricePerNight": ${Math.round(numBudget * 0.35 / Math.max(1, numDays - 1))},
+    "reason": "Central location matching ${travelStyle} travel style and ${hotelPreference} preference"
   },
   "recommendedTransport": {
-    "mode": "Metro & Regional Rail",
-    "provider": "City Metro Pass",
-    "estimatedCost": ${Math.round(numBudget * 0.08)},
-    "reason": "Fastest and most economical way to navigate between attractions"
+    "mode": "${transportPreference}",
+    "provider": "IRCTC / State Transport / Express",
+    "estimatedCost": ${Math.round(numBudget * 0.2)},
+    "reason": "Matches preferred transit with punctual schedules and cost control"
   },
-  "weatherTip": "Pleasant morning temperatures; visit open monuments before 1 PM and indoor museums during afternoon peak hours.",
+  "weatherTip": "Pleasant morning temperatures; visit open monuments before 12 PM and indoor galleries during peak afternoon hours.",
   "days": [
     {
       "dayNumber": 1,
-      "title": "Iconic Landmarks & Historic Center",
-      "highlights": ["Top Attraction 1", "Regional Lunch", "Top Attraction 2"],
+      "title": "Iconic Heritage & Grand Monuments",
+      "highlights": ["Historic Monument", "Regional Authentic Thali", "Art Gallery"],
       "schedule": [
         {
           "time": "09:00 AM",
-          "activity": "Morning Landmark Exploration",
-          "placeName": "Landmark 1",
+          "activity": "Morning Heritage Exploration",
+          "placeName": "${destination} Palace & Grounds",
           "duration": "2.5 hrs",
           "isOutdoor": true,
-          "coordinates": { "lat": ${targetLat + 0.003}, "lng": ${targetLng + 0.004} },
-          "note": "Arrive early to beat queues."
+          "coordinates": { "lat": ${targetLat + 0.002}, "lng": ${targetLng + 0.003} },
+          "note": "Arrive early to beat ticket queues."
         },
         {
           "time": "01:00 PM",
-          "activity": "Authentic Cuisine Lunch",
-          "placeName": "Traditional Bistro",
+          "activity": "Traditional Regional Lunch",
+          "placeName": "Heritage Bhavan & Vegetarian Mess",
           "duration": "1 hr",
           "isOutdoor": false,
-          "coordinates": { "lat": ${targetLat + 0.001}, "lng": ${targetLng + 0.002} },
+          "coordinates": { "lat": ${targetLat + 0.001}, "lng": ${targetLng + 0.001} },
           "note": "Famous local specialties."
         },
         {
           "time": "02:30 PM",
-          "activity": "Indoor Museum & Art Exhibition",
-          "placeName": "National Museum",
+          "activity": "Indoor Art & Culture Museum",
+          "placeName": "${destination} Art & History Museum",
           "duration": "2 hrs",
           "isOutdoor": false,
-          "coordinates": { "lat": ${targetLat - 0.004}, "lng": ${targetLng - 0.003} },
-          "note": "Air-conditioned collections."
+          "coordinates": { "lat": ${targetLat - 0.003}, "lng": ${targetLng - 0.002} },
+          "note": "Rain/heat safe historical collection."
         }
       ]
     }
   ],
   "alertsConsidered": [
     "Peak tourist lines minimized with morning entry",
-    "Indoor contingency applied during peak afternoon sun"
+    "Estimated total cost strictly matches user ₹${numBudget} budget"
   ]
 }`;
 
@@ -970,15 +994,39 @@ Requirements:
     });
   }
 
+  const transportAmt = Math.round(numBudget * 0.18);
+  const hotelAmt = Math.round(hotelRate * Math.max(1, numDays - 1));
+  const foodAmt = Math.round(numBudget * 0.22);
+  const attractionsAmt = Math.round(numBudget * 0.12);
+  const localTravelAmt = Math.round(numBudget * 0.08);
+  const totalCalc = transportAmt + hotelAmt + foodAmt + attractionsAmt + localTravelAmt;
+  const remBudget = numBudget - totalCalc;
+
   const fallbackPlan = {
     title: `${numDays}-Day Smart Travel Itinerary for ${destination}`,
     destination,
+    startingLocation,
     duration: `${numDays} Days`,
-    budgetCategory: (numBudget < 400 ? 'Budget' : numBudget > 1200 ? 'Luxury' : 'Moderate'),
-    estimatedTotalBudget: Math.round(numBudget * 0.88),
+    budgetCategory: travelStyle || (numBudget < 4000 ? 'Budget' : numBudget > 15000 ? 'Luxury' : 'Balanced'),
+    estimatedTotalBudget: totalCalc,
     currencySymbol: activeSymbol,
     totalDistanceKm: Math.round(numDays * 7.5),
     estimatedTravelTime: "35–50 mins/day",
+    budgetBreakdown: {
+      transport: transportAmt,
+      hotel: hotelAmt,
+      food: foodAmt,
+      attractions: attractionsAmt,
+      localTravel: localTravelAmt,
+      total: totalCalc,
+      budgetRemaining: remBudget,
+      exceedsBudget: totalCalc > numBudget,
+      optimizationNotes: totalCalc > numBudget ? [
+        "Opt for state RTC express buses or sleeper trains instead of private cabs",
+        "Select heritage homestays or verified 3-star boutique hotels",
+        "Utilize combo monument entry passes"
+      ] : []
+    },
     recommendedHotel: {
       name: hotelName,
       pricePerNight: hotelRate,

@@ -27,6 +27,7 @@ interface MyTripsViewProps {
   onNavigate: (view: any) => void;
   onRemoveSavedPlace: (id: string) => void;
   onCancelTrip: (id: string) => void;
+  onEditPreferences?: () => void;
 }
 
 export const MyTripsView: React.FC<MyTripsViewProps> = ({
@@ -37,6 +38,7 @@ export const MyTripsView: React.FC<MyTripsViewProps> = ({
   onNavigate,
   onRemoveSavedPlace,
   onCancelTrip,
+  onEditPreferences,
 }) => {
   const [activeTab, setActiveTab] = useState<'trips' | 'saved' | 'hotels' | 'preferences'>('trips');
 
@@ -342,30 +344,114 @@ export const MyTripsView: React.FC<MyTripsViewProps> = ({
 
       {/* Tab: Travel Preferences */}
       {activeTab === 'preferences' && (
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-4 max-w-xl">
-          <h3 className="text-base font-extrabold text-slate-900">
-            Personalized Travel Profile
-          </h3>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-2">
-              Interested Experiences
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {user.travelPreferences.map((pref, i) => (
-                <span key={i} className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-200">
-                  ✓ {pref}
-                </span>
-              ))}
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6 max-w-3xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="text-lg font-black text-slate-900">
+                Personalized Travel Profile &amp; Preferences
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Active travel settings used to customize your recommendations, smart itineraries, and budgets.
+              </p>
             </div>
+            {onEditPreferences && (
+              <button
+                id="btn-edit-travel-profile-preferences"
+                onClick={onEditPreferences}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>Edit Preferences</span>
+              </button>
+            )}
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
-              Budget Philosophy
-            </label>
-            <span className="px-3 py-1 bg-slate-100 text-slate-800 text-xs font-bold rounded-lg">
-              {user.budgetPreference} Tier
-            </span>
-          </div>
+
+          {user.travelProfile ? (
+            <div className="space-y-6">
+              {/* Route & Timing */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Route Journey</span>
+                  <div className="text-base font-black text-slate-900 mt-1 flex items-center gap-2">
+                    <span>{user.travelProfile.startingLocation}</span>
+                    <span className="text-blue-600">→</span>
+                    <span className="text-blue-700">{user.travelProfile.destination}</span>
+                  </div>
+                  <div className="text-xs text-slate-600 font-medium mt-1">
+                    Dates: {user.travelProfile.startDate} to {user.travelProfile.endDate} ({user.travelProfile.availableDays} Days)
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/80">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Allocated Budget</span>
+                  <div className="text-base font-black text-emerald-950 mt-1">
+                    ₹{user.travelProfile.budgetAmount.toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-xs text-emerald-800 font-medium mt-1">
+                    Travelers: {user.travelProfile.travelersCount} ({user.travelProfile.travelersType})
+                  </div>
+                </div>
+              </div>
+
+              {/* Preferences Details */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Travel Style</span>
+                  <div className="text-xs font-black text-slate-900 mt-0.5">{user.travelProfile.travelStyle}</div>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Trip Priority</span>
+                  <div className="text-xs font-black text-slate-900 mt-0.5">{user.travelProfile.tripPriority}</div>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Stay Preference</span>
+                  <div className="text-xs font-black text-slate-900 mt-0.5">{user.travelProfile.hotelPreference}</div>
+                </div>
+                <div className="col-span-2 sm:col-span-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Transport Mode</span>
+                  <div className="text-xs font-black text-slate-900 mt-0.5">
+                    {user.travelProfile.transportPreference.join(' + ')}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">
+                  Interested Themes &amp; Experiences
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {user.travelProfile.interests.map((interest, i) => (
+                    <span key={i} className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-200">
+                      ✓ {interest}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">
+                  Interested Experiences
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {user.travelPreferences.map((pref, i) => (
+                    <span key={i} className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-200">
+                      ✓ {pref}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  Budget Philosophy
+                </label>
+                <span className="px-3 py-1 bg-slate-100 text-slate-800 text-xs font-bold rounded-lg">
+                  {user.budgetPreference} Tier
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

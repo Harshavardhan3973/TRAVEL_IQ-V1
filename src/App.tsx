@@ -8,7 +8,8 @@ import {
   UserProfile, 
   UserTrip,
   WorldLocation,
-  AITripPlan
+  AITripPlan,
+  TravelProfile
 } from './types';
 
 import { DESTINATIONS_DATA } from './data/destinations';
@@ -33,6 +34,7 @@ import { RealTimeAlertsView } from './components/RealTimeAlertsView';
 import { MyTripsView } from './components/MyTripsView';
 import { DestinationModal } from './components/DestinationModal';
 import { AuthModal } from './components/AuthModal';
+import { PersonalizedAuthOnboarding } from './components/PersonalizedAuthOnboarding';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<AppView>('home');
@@ -53,32 +55,25 @@ export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
 
+  // Personalized Onboarding First Screen
+  const [showPersonalizedOnboarding, setShowPersonalizedOnboarding] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('traveliq_user_profile');
+      return !saved; // Show onboarding if not completed or fresh visit
+    } catch {
+      return true;
+    }
+  });
+
   // User Profile
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>({
-    id: 'usr-demo-1',
-    name: 'Arjun Sharma',
-    email: 'arjun.traveler@traveliq.in',
-    phone: '+91 98450 12345',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-    travelPreferences: ['Heritage & History', 'Local Cuisine', 'Nature & Wildlife'],
-    budgetPreference: 'Comfort',
-    savedPlaceIds: ['mysore-palace', 'chamundi-hill'],
-    bookedHotelIds: ['hotel-grand-mercure'],
-    notificationsEnabled: true,
-    trips: [
-      {
-        id: 'trip-mysore-1',
-        title: 'Mysore Heritage & Palace Weekend',
-        destination: 'Mysore',
-        dates: '12–14 September (2 Days)',
-        hotelBooked: 'Grand Mercure Mysore (Deluxe King)',
-        transport: 'KSRTC Airavat AC Express Bus',
-        placesCount: 5,
-        estimatedBudget: 4850,
-        status: 'Upcoming',
-        itinerarySummary: 'Palace tour at 09:00 AM, indoor Jaganmohan Art Gallery in afternoon during expected rainfall.'
-      }
-    ]
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem('traveliq_user_profile');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
   });
 
   // Trip planner initial params
@@ -87,6 +82,90 @@ export default function App() {
     date: '2026-09-12',
     travelers: 2,
   });
+
+  // Onboarding completion handlers
+  const handleOnboardingComplete = (user: UserProfile, profile: TravelProfile) => {
+    const updatedUser: UserProfile = {
+      ...user,
+      travelProfile: profile,
+    };
+    setCurrentUser(updatedUser);
+    try {
+      localStorage.setItem('traveliq_user_profile', JSON.stringify(updatedUser));
+    } catch (e) {
+      console.error(e);
+    }
+    setPlannerParams({
+      destination: profile.destination && profile.destination !== 'Help me choose' ? profile.destination : 'Mysuru',
+      date: profile.startDate || '2026-09-12',
+      travelers: profile.travelersCount || 2,
+    });
+    setShowPersonalizedOnboarding(false);
+    setCurrentView('home');
+  };
+
+  const handleOnboardingSkip = () => {
+    setShowPersonalizedOnboarding(false);
+    if (!currentUser) {
+      const defaultProfile: TravelProfile = {
+        availableTime: '2 Days',
+        availableDays: 2,
+        startDate: '2026-09-12',
+        endDate: '2026-09-14',
+        budgetType: '₹5,000 – ₹10,000',
+        budgetAmount: 5000,
+        travelersType: 'Couple',
+        travelersCount: 2,
+        startingLocation: 'Bengaluru',
+        destination: 'Mysuru',
+        interests: ['History & Heritage', 'Local Food & Street Food', 'Culture & Traditions'],
+        travelStyle: 'Balanced',
+        transportPreference: ['Train', 'Bus'],
+        hotelPreference: 'Budget Hotel',
+        tripPriority: ['Maximum places', 'Comfort'],
+        budgetBreakdown: {
+          transport: 900,
+          hotel: 1750,
+          food: 1100,
+          attractions: 600,
+          localTravel: 400,
+          total: 4750,
+          budgetRemaining: 250,
+          exceedsBudget: false
+        }
+      };
+
+      const demoUser: UserProfile = {
+        id: 'usr-demo-1',
+        name: 'Arjun Sharma',
+        email: 'arjun.traveler@traveliq.in',
+        phone: '+91 98450 12345',
+        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+        travelPreferences: ['Heritage & History', 'Local Cuisine', 'Nature & Wildlife'],
+        budgetPreference: 'Comfort',
+        savedPlaceIds: ['mysore-palace', 'chamundi-hill'],
+        bookedHotelIds: ['hotel-grand-mercure'],
+        notificationsEnabled: true,
+        travelProfile: defaultProfile,
+        trips: [
+          {
+            id: 'trip-mysore-1',
+            title: 'Mysore Heritage & Palace Weekend',
+            destination: 'Mysore',
+            dates: '12–14 September (2 Days)',
+            hotelBooked: 'Grand Mercure Mysore (Deluxe King)',
+            transport: 'KSRTC Airavat AC Express Bus',
+            placesCount: 5,
+            estimatedBudget: 4850,
+            status: 'Upcoming',
+            itinerarySummary: 'Palace tour at 09:00 AM, indoor Jaganmohan Art Gallery in afternoon during expected rainfall.'
+          }
+        ]
+      };
+      setCurrentUser(demoUser);
+    }
+    setCurrentView('home');
+  };
 
   // Live status refresh animation simulation
   const [isStatusRefreshing, setIsStatusRefreshing] = useState(false);
@@ -126,6 +205,12 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
+    try {
+      localStorage.removeItem('traveliq_user_profile');
+    } catch (e) {
+      console.error(e);
+    }
+    setShowPersonalizedOnboarding(true);
     setCurrentView('home');
   };
 
@@ -270,6 +355,17 @@ export default function App() {
     currentUser?.bookedHotelIds.includes(h.id)
   );
 
+  // 1. FIRST SCREEN MUST BE LOGIN / SIGN UP & TRAVEL ONBOARDING
+  if (showPersonalizedOnboarding) {
+    return (
+      <PersonalizedAuthOnboarding
+        initialProfile={currentUser?.travelProfile}
+        onComplete={handleOnboardingComplete}
+        onSkip={handleOnboardingSkip}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100/70 text-slate-800 flex flex-col antialiased">
       {/* GLOBAL NAVBAR */}
@@ -278,8 +374,8 @@ export default function App() {
         onNavigate={setCurrentView}
         alerts={alerts}
         currentUser={currentUser}
-        onOpenLogin={() => handleOpenAuth('login')}
-        onOpenSignup={() => handleOpenAuth('signup')}
+        onOpenLogin={() => setShowPersonalizedOnboarding(true)}
+        onOpenSignup={() => setShowPersonalizedOnboarding(true)}
         onLogout={handleLogout}
       />
 
@@ -292,6 +388,8 @@ export default function App() {
             transports={transports}
             alerts={alerts}
             weather={weather}
+            currentUser={currentUser}
+            onPlanNewTrip={() => setShowPersonalizedOnboarding(true)}
             onNavigate={setCurrentView}
             onSelectDestination={(dest) => setSelectedDestination(dest)}
             onSelectWorldDestination={(loc) => {
@@ -418,6 +516,8 @@ export default function App() {
             initialDate={plannerParams.date}
             initialTravelers={plannerParams.travelers}
             initialWorldLocation={selectedWorldLocation}
+            currentUser={currentUser}
+            onPlanNewTrip={() => setShowPersonalizedOnboarding(true)}
             onSaveTrip={handleSaveTrip}
             onViewOnMap={(plan) => {
               setActiveTripPlan(plan);
@@ -442,6 +542,7 @@ export default function App() {
             onNavigate={setCurrentView}
             onRemoveSavedPlace={handleToggleSavePlace}
             onCancelTrip={handleCancelTrip}
+            onEditPreferences={() => setShowPersonalizedOnboarding(true)}
           />
         )}
       </main>

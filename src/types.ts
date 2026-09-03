@@ -238,13 +238,25 @@ export interface AITripDay {
 export interface AITripPlan {
   title: string;
   destination: string;
+  startingLocation?: string;
   duration: string;
-  budgetCategory: 'Budget' | 'Moderate' | 'Luxury';
+  budgetCategory: 'Budget' | 'Moderate' | 'Luxury' | string;
   estimatedTotalBudget: number;
   currencySymbol?: string;
   currency?: string;
   totalDistanceKm?: number;
   estimatedTravelTime?: string;
+  budgetBreakdown?: {
+    transport: number;
+    hotel: number;
+    food: number;
+    attractions: number;
+    localTravel: number;
+    total: number;
+    budgetRemaining: number;
+    exceedsBudget: boolean;
+    optimizationNotes?: string[];
+  };
   recommendedHotel: {
     name: string;
     pricePerNight: number;
@@ -275,6 +287,36 @@ export interface UserTrip {
   itinerarySummary?: string;
 }
 
+export interface TravelProfile {
+  availableTime: string; // e.g. "1 Day", "2 Days", "3 Days", "4–5 Days", "1 Week", "2+ Weeks", "Custom"
+  availableDays: number;
+  startDate?: string;
+  endDate?: string;
+  budgetType: string; // "Under ₹2,000", "₹2,000 – ₹5,000", "₹5,000 – ₹10,000", "₹10,000 – ₹25,000", "₹25,000+", "Custom"
+  budgetAmount: number;
+  travelersType: 'Solo' | 'Couple' | 'Family' | 'Friends' | 'Group';
+  travelersCount: number;
+  startingLocation: string; // "Bengaluru", "Mysuru", etc.
+  destination: string; // "Mysuru", "Goa", "Help me choose", etc.
+  interests: string[]; // ["History & Heritage", "Spiritual", "Beaches", ...]
+  travelStyle: 'Budget' | 'Balanced' | 'Comfort' | 'Premium';
+  transportPreference: string[]; // ["Bus", "Train", "Metro", ...] or ["Choose for me"]
+  hotelPreference: 'Budget Hotel' | 'Hostel' | '3-Star' | '4-Star' | '5-Star' | 'Homestay' | 'Resort' | 'No Preference';
+  tripPriority: string[]; // ["Lowest Cost", "Shortest Travel Time", "Maximum Places", "Comfort", "Unique Experiences", "Relaxed Trip", "Family Friendly"]
+  completedAt?: string;
+  budgetBreakdown?: {
+    transport: number;
+    hotel: number;
+    food: number;
+    attractions: number;
+    localTravel: number;
+    total: number;
+    budgetRemaining: number;
+    exceedsBudget: boolean;
+    optimizationNotes?: string[];
+  };
+}
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -287,6 +329,7 @@ export interface UserProfile {
   bookedHotelIds: string[];
   trips: UserTrip[];
   notificationsEnabled: boolean;
+  travelProfile?: TravelProfile;
 }
 
 export type AppView =
